@@ -322,7 +322,7 @@ ${msg.body}
     if (text === ".menu") {
       const caption = `
 ╭━━━〔 🤖 *IRGAN BOT* 🤖 〕━━━⬣
-┃ 👑 Owner : Irgan
+┃ 👑 Owner : Irgann
 ┃ ⚡ Status : Online
 ┃ 📡 Mode : ${publicMode ? "Public" : "Self"}
 ╰━━━━━━━━━━━━━━━━⬣
