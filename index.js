@@ -9,6 +9,78 @@ const pino = require("pino")
 const fs = require("fs")
 const { exec } = require("child_process")
 
+
+const https = require("https")
+const BASE_URL = "deep-seek.ai"
+
+async function getCsrfToken() {
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: BASE_URL,
+      path: "/",
+      method: "GET",
+      headers: { "User-Agent": "Mozilla/5.0" }
+    }, (res) => {
+      let data = ""
+      res.on("data", chunk => data += chunk)
+      res.on("end", () => {
+        const meta = data.match(/<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i)
+        const js = data.match(/X-CSRF-TOKEN["']?\s*[:=]\s*["']([^"']+)["']/i)
+        const token = meta?.[1] || js?.[1]
+        token ? resolve(token) : reject(new Error("CSRF token gagal"))
+      })
+    })
+
+    req.on("error", reject)
+    req.end()
+  })
+}
+
+async function deepSeekChat(prompt) {
+  const csrfToken = await getCsrfToken()
+
+  const payload = JSON.stringify({
+    model: "deepseek/deepseek-v4-flash",
+    messages: [{ role: "user", content: prompt }]
+  })
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: BASE_URL,
+      path: "/api/chat",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-TOKEN": csrfToken,
+        "User-Agent": "Mozilla/5.0",
+        "Content-Length": Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      let data = ""
+      res.on("data", chunk => data += chunk)
+      res.on("end", () => {
+        let response = ""
+
+        for (const line of data.split("\n")) {
+          if (line.startsWith("data: ") && !line.includes("[DONE]")) {
+            try {
+              const json = JSON.parse(line.slice(6))
+              const content = json.choices?.[0]?.delta?.content
+              if (content) response += content
+            } catch {}
+          }
+        }
+
+        resolve(response || "AI tidak memberi jawaban.")
+      })
+    })
+
+    req.on("error", reject)
+    req.write(payload)
+    req.end()
+  })
+}
+
 const ownerNumber = "6283178115390"
 const botName = "IRGAN BOT"
 
@@ -449,11 +521,33 @@ console.log("PESAN MASUK:", text)
 }
 
     if (text.startsWith(".ai ")) {
-      const q = text.replace(".ai ", "")
-      return sock.sendMessage(from, {
-        text: `AI belum pakai API key.\nPertanyaan kamu: ${q}`
-      })
-    }
+  const q = text.replace(".ai ", "").trim()
+
+  if (!q) {
+    return sock.sendMessage(from, {
+      text: "Contoh: .ai halo"
+    })
+  }
+
+  await sock.sendMessage(from, {
+    text: "🤖 AI lagi mikir..."
+  })
+
+  try {
+    const jawaban = await deepSeekChat(q)
+
+    await sock.sendMessage(from, {
+      text: jawaban
+    })
+
+  } catch (e) {
+    console.log(e)
+
+    await sock.sendMessage(from, {
+      text: "AI error."
+    })
+  }
+}
 
     if (text === ".game") {
       const angka = Math.floor(Math.random() * 10) + 1
