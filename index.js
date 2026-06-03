@@ -664,8 +664,6 @@ Contoh:
           : "❌ Salah, angkanya lebih besar."
       })
     }
-  })
-}
 
 if (text === ".iq") {
   global.iqSession = global.iqSession || {}
@@ -920,8 +918,9 @@ function getIQLevel(iq) {
   if (iq >= 80) return "Lumayan 😎"
   return "Perlu latihan lagi 💪"
 }
+  })
+}
 
 console.log("BOT MULAI")
 
 startBot()
-
