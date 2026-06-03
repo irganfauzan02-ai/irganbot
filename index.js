@@ -776,5 +776,7 @@ async function safeSend(sock, jid, content) {
   }
 }
 
+console.log("BOT MULAI")
+
 startBot()
 
