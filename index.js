@@ -1,0 +1,517 @@
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  downloadMediaMessage,
+  DisconnectReason
+} = require("@whiskeysockets/baileys")
+
+const pino = require("pino")
+const fs = require("fs")
+const { exec } = require("child_process")
+
+const ownerNumber = "6283178115390"
+const botName = "IRGAN BOT"
+
+let publicMode = true
+let autoRead = false
+let autoReact = true
+let antiSpam = true
+let badword = true
+let antiDelete = true
+let userSpam = {}
+
+const badwords = ["anjing", "kontol", "memek", "bangsat"]
+
+function getText(msg) {
+  return msg.message?.conversation ||
+    msg.message?.extendedTextMessage?.text ||
+    msg.message?.imageMessage?.caption ||
+    msg.message?.videoMessage?.caption || ""
+}
+
+function isOwner(sender) {
+  return sender.includes(ownerNumber)
+}
+
+async function isAdmin(sock, groupId, sender) {
+  const meta = await sock.groupMetadata(groupId)
+  const p = meta.participants.find(x => x.id === sender)
+  return p?.admin === "admin" || p?.admin === "superadmin"
+}
+
+async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState("session")
+
+  const sock = makeWASocket({
+    auth: state,
+    logger: pino({ level: "silent" }),
+    browser: ["Ubuntu", "Chrome", "20.0.04"]
+  })
+
+  sock.ev.on("creds.update", saveCreds)
+
+  sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+    if (connection === "open") {
+      console.log(`✅ ${botName} AKTIF`)
+    }
+
+    if (connection === "close") {
+      const statusCode = lastDisconnect?.error?.output?.statusCode
+      if (statusCode !== DisconnectReason.loggedOut) startBot()
+    }
+  })
+
+  if (!state.creds.registered) {
+
+  setTimeout(async () => {
+
+    try {
+
+      const code = await sock.requestPairingCode(ownerNumber)
+
+      console.log("")
+      console.log("╔════════════════╗")
+      console.log("║  PAIRING CODE  ║")
+      console.log("╚════════════════╝")
+      console.log(code)
+      console.log("")
+
+    } catch (err) {
+
+      console.log("Gagal ambil pairing code:")
+      console.log(err)
+
+    }
+
+  }, 3000)
+
+}
+
+  sock.ev.on("group-participants.update", async (u) => {
+    for (const user of u.participants) {
+      if (u.action === "add") {
+        if (fs.existsSync("./welcome.jpg")) {
+          await sock.sendMessage(u.id, {
+            image: fs.readFileSync("./welcome.jpg"),
+            caption:
+`╔═══『 WELCOME 』═══╗
+
+👋 Halo @${user.split("@")[0]}
+
+Selamat datang di grup 🎉
+Jangan lupa baca rules ya.
+
+╚════════════════╝`,
+            mentions: [user]
+          })
+        } else {
+          await sock.sendMessage(u.id, {
+            text: `👋 Selamat datang @${user.split("@")[0]}`,
+            mentions: [user]
+          })
+        }
+      }
+
+      if (u.action === "remove") {
+        await sock.sendMessage(u.id, {
+          text: `👋 @${user.split("@")[0]} keluar dari grup`,
+          mentions: [user]
+        })
+      }
+    }
+  })
+
+  sock.ev.on("messages.update", async (updates) => {
+    if (!antiDelete) return
+    for (const u of updates) {
+      if (u.update?.message === null) {
+        console.log("Pesan dihapus terdeteksi.")
+      }
+    }
+  })
+
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+
+const msg = messages[0]
+
+if (!msg.message) return
+
+const from = msg.key.remoteJid
+const sender = msg.key.participant || from
+
+const text =
+msg.message?.conversation ||
+msg.message?.extendedTextMessage?.text ||
+msg.message?.imageMessage?.caption ||
+msg.message?.videoMessage?.caption || ""
+
+const isGroup = from.endsWith("@g.us")
+
+console.log("PESAN MASUK:", text)
+
+    if (autoRead) await sock.readMessages([msg.key])
+    if (autoReact && text) await sock.sendMessage(from, { react: { text: "⚡", key: msg.key } })
+
+    if (!publicMode && !isOwner(sender)) return
+
+    if (antiSpam && !isOwner(sender)) {
+      const now = Date.now()
+      userSpam[sender] = userSpam[sender] || []
+      userSpam[sender] = userSpam[sender].filter(t => now - t < 5000)
+      userSpam[sender].push(now)
+
+      if (userSpam[sender].length >= 6) {
+        return sock.sendMessage(from, { text: "⚠️ Jangan spam command." })
+      }
+    }
+
+    if (badword && isGroup && badwords.some(w => text.toLowerCase().includes(w))) {
+      return sock.sendMessage(from, {
+        text: `⚠️ Kata kasar terdeteksi @${sender.split("@")[0]}`,
+        mentions: [sender]
+      })
+    }
+
+    if (isGroup && text.includes("chat.whatsapp.com")) {
+      const admin = await isAdmin(sock, from, sender)
+
+      if (!admin) {
+        await sock.sendMessage(from, {
+          text: `🚫 Anti link aktif! @${sender.split("@")[0]} dikeluarkan.`,
+          mentions: [sender]
+        })
+
+        return sock.groupParticipantsUpdate(from, [sender], "remove")
+      }
+    }
+
+    if (text === ".menu") {
+      const caption =
+`╔═══『 ${botName} 』═══╗
+║ 👑 Owner : Igan
+║ ⚡ Status : Online
+║ 🤖 Mode : ${publicMode ? "Public" : "Self"}
+╠══════════════════
+║ 📥 DOWNLOADER
+║ .tt link
+║ .ig link
+║ .ytmp3 link
+║ .ytmp4 link
+╠══════════════════
+║ 👥 GROUP MENU
+║ .tagall
+║ .hidetag teks
+║ .open
+║ .close
+║ .kick
+║ .promote
+║ .demote
+╠══════════════════
+║ 🛠 TOOLS
+║ .sticker
+║ .tomp3
+║ .ai pertanyaan
+║ .game
+║ .tebak angka
+║ .ping
+║ .info
+╠══════════════════
+║ ⚙ OWNER MENU
+║ .public
+║ .self
+║ .autoread on/off
+║ .badword on/off
+║ .antispam on/off
+╚══════════════════╝`
+
+      if (fs.existsSync("./menu.jpg")) {
+        return sock.sendMessage(from, {
+          image: fs.readFileSync("./menu.jpg"),
+          caption
+        })
+      }
+
+      return sock.sendMessage(from, { text: caption })
+    }
+
+    if (text === ".ping") return sock.sendMessage(from, { text: "pong ✅" })
+    if (text === ".owner") return sock.sendMessage(from, { text: "Owner: Igan" })
+    if (text === ".info") return sock.sendMessage(from, { text: "Bot penjaga grup aktif ✅" })
+
+    if (text === ".public" && isOwner(sender)) {
+      publicMode = true
+      return sock.sendMessage(from, { text: "Mode public aktif ✅" })
+    }
+
+    if (text === ".self" && isOwner(sender)) {
+      publicMode = false
+      return sock.sendMessage(from, { text: "Mode self aktif ✅" })
+    }
+
+    if (text === ".autoread on" && isOwner(sender)) {
+      autoRead = true
+      return sock.sendMessage(from, { text: "Auto read ON ✅" })
+    }
+
+    if (text === ".autoread off" && isOwner(sender)) {
+      autoRead = false
+      return sock.sendMessage(from, { text: "Auto read OFF ✅" })
+    }
+
+    if (text === ".badword on") {
+      badword = true
+      return sock.sendMessage(from, { text: "Badword detector ON ✅" })
+    }
+
+    if (text === ".badword off") {
+      badword = false
+      return sock.sendMessage(from, { text: "Badword detector OFF ✅" })
+    }
+
+    if (text === ".antispam on") {
+      antiSpam = true
+      return sock.sendMessage(from, { text: "Anti spam ON ✅" })
+    }
+
+    if (text === ".antispam off") {
+      antiSpam = false
+      return sock.sendMessage(from, { text: "Anti spam OFF ✅" })
+    }
+
+    if (text === ".open" && isGroup) {
+      await sock.groupSettingUpdate(from, "not_announcement")
+      return sock.sendMessage(from, { text: "Grup dibuka ✅" })
+    }
+
+    if (text === ".close" && isGroup) {
+      await sock.groupSettingUpdate(from, "announcement")
+      return sock.sendMessage(from, { text: "Grup ditutup ✅" })
+    }
+
+    if (text === ".tagall" && isGroup) {
+      const meta = await sock.groupMetadata(from)
+      const members = meta.participants.map(p => p.id)
+      const teks = members.map(x => `@${x.split("@")[0]}`).join("\n")
+      return sock.sendMessage(from, { text: teks, mentions: members })
+    }
+
+    if (text.startsWith(".hidetag ") && isGroup) {
+      const meta = await sock.groupMetadata(from)
+      const members = meta.participants.map(p => p.id)
+      return sock.sendMessage(from, {
+        text: text.replace(".hidetag ", ""),
+        mentions: members
+      })
+    }
+
+    if ((text === ".kick" || text === ".promote" || text === ".demote") && isGroup) {
+      const quoted = msg.message.extendedTextMessage?.contextInfo?.participant
+      if (!quoted) return sock.sendMessage(from, { text: "Reply orangnya dulu." })
+
+      if (text === ".kick") await sock.groupParticipantsUpdate(from, [quoted], "remove")
+      if (text === ".promote") await sock.groupParticipantsUpdate(from, [quoted], "promote")
+      if (text === ".demote") await sock.groupParticipantsUpdate(from, [quoted], "demote")
+
+      return sock.sendMessage(from, { text: "Berhasil ✅" })
+    }
+
+    if (text.startsWith(".tt ")) {
+      const url = text.split(" ")[1]
+      exec(`yt-dlp -f mp4 -o "tt.mp4" "${url}"`, async (err) => {
+        if (err) return sock.sendMessage(from, { text: "Gagal download TikTok." })
+        await sock.sendMessage(from, {
+          video: fs.readFileSync("tt.mp4"),
+          caption: "TikTok ✅"
+        })
+        fs.unlinkSync("tt.mp4")
+      })
+    }
+
+    if (text.startsWith(".ig ")) {
+      const url = text.split(" ")[1]
+      exec(`yt-dlp -f mp4 -o "ig.mp4" "${url}"`, async (err) => {
+        if (err) return sock.sendMessage(from, { text: "Gagal download IG/Reels." })
+        await sock.sendMessage(from, {
+          video: fs.readFileSync("ig.mp4"),
+          caption: "Instagram ✅"
+        })
+        fs.unlinkSync("ig.mp4")
+      })
+    }
+
+    if (text.startsWith(".ytmp3 ")) {
+      const url = text.split(" ")[1]
+      exec(`yt-dlp -x --audio-format mp3 -o "yt.mp3" "${url}"`, async (err) => {
+        if (err) return sock.sendMessage(from, { text: "Gagal download YouTube MP3." })
+        await sock.sendMessage(from, {
+          audio: fs.readFileSync("yt.mp3"),
+          mimetype: "audio/mpeg"
+        })
+        fs.unlinkSync("yt.mp3")
+      })
+    }
+
+    if (text.startsWith(".ytmp4 ")) {
+      const url = text.split(" ")[1]
+      exec(`yt-dlp -f mp4 -o "yt.mp4" "${url}"`, async (err) => {
+        if (err) return sock.sendMessage(from, { text: "Gagal download YouTube MP4." })
+        await sock.sendMessage(from, {
+          video: fs.readFileSync("yt.mp4"),
+          caption: "YouTube MP4 ✅"
+        })
+        fs.unlinkSync("yt.mp4")
+      })
+    }
+
+    if (text.startsWith(".sticker")) {
+  const stickerText = text.replace(".sticker", "").trim()
+
+  let mediaMsg = msg.message.imageMessage ? msg : null
+  const quoted = msg.message.extendedTextMessage?.contextInfo?.quotedMessage
+
+  if (!mediaMsg && quoted?.imageMessage) {
+    mediaMsg = { key: msg.key, message: quoted }
+  }
+
+  if (!mediaMsg) {
+    return sock.sendMessage(from, {
+      text: "Kirim/reply foto lalu ketik .sticker teks"
+    })
+  }
+
+  const buffer = await downloadMediaMessage(mediaMsg, "buffer", {}, {
+    logger: pino({ level: "silent" })
+  })
+
+  const inputFile = `input_${Date.now()}.jpg`
+  const outputFile = `sticker_${Date.now()}.webp`
+
+  fs.writeFileSync(inputFile, buffer)
+
+  const safeText = stickerText.replace(/"/g, '\\"')
+
+  const cmd = stickerText
+  ? `convert "${inputFile}" -resize 512x512\\> -gravity south -fill white -stroke black -strokewidth 2 -pointsize 42 -annotate +0+15 "${safeText}" "${outputFile}"`
+  : `convert "${inputFile}" -resize 512x512\\> "${outputFile}"`	
+
+  exec(cmd, async (err) => {
+    if (err) {
+      if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile)
+      if (fs.existsSync("temp.png")) fs.unlinkSync("temp.png")
+      return sock.sendMessage(from, { text: "Gagal bikin stiker." })
+    }
+
+    await sock.sendMessage(from, {
+      sticker: fs.readFileSync(outputFile)
+    })
+
+    if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile)
+    if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile)
+    if (fs.existsSync("temp.png")) fs.unlinkSync("temp.png")
+  })
+
+  return
+}
+
+    if (text === ".tomp3") {
+  let mediaMsg = msg.message.videoMessage ? msg : null
+  const quoted = msg.message.extendedTextMessage?.contextInfo?.quotedMessage
+
+    if (!mediaMsg && quoted?.videoMessage) {
+    mediaMsg = { key: msg.key, message: quoted }
+  }
+
+  if (!mediaMsg) {
+    return sock.sendMessage(from, {
+      text: "Kirim video dengan caption .tomp3 atau reply video lalu ketik .tomp3"
+    })
+  }
+
+  const buffer = await downloadMediaMessage(mediaMsg, "buffer", {}, {
+    logger: pino({ level: "silent" })
+  })
+
+  const videoFile = `video_${Date.now()}.mp4`
+  const audioFile = `audio_${Date.now()}.mp3`
+
+  fs.writeFileSync(videoFile, buffer)
+
+  exec(`ffmpeg -y -i "${videoFile}" -vn -ar 44100 -ac 2 -b:a 128k "${audioFile}"`, async (err) => {
+    if (err) {
+      if (fs.existsSync(videoFile)) fs.unlinkSync(videoFile)
+      return sock.sendMessage(from, { text: "Gagal ubah video jadi audio. Pastikan ffmpeg sudah terinstall." })
+    }
+
+    await sock.sendMessage(from, {
+      audio: fs.readFileSync(audioFile),
+      mimetype: "audio/mpeg"
+    })
+
+    fs.unlinkSync(videoFile)
+    fs.unlinkSync(audioFile)
+  })
+}
+
+    if (text.startsWith(".ai ")) {
+      const q = text.replace(".ai ", "")
+      return sock.sendMessage(from, {
+        text: `AI belum pakai API key.\nPertanyaan kamu: ${q}`
+      })
+    }
+
+    if (text === ".game") {
+      const angka = Math.floor(Math.random() * 10) + 1
+
+      global.tebakAngka = global.tebakAngka || {}
+      global.tebakAngka[from] = angka
+
+      return sock.sendMessage(from, {
+        text:
+`🎮 GAME TEBAK ANGKA
+
+Aku sudah pilih angka 1-10.
+Tebak pakai:
+
+.tebak angka
+
+Contoh:
+.tebak 5`
+      })
+    }
+
+    if (text.startsWith(".tebak ")) {
+      global.tebakAngka = global.tebakAngka || {}
+
+      if (!global.tebakAngka[from]) {
+        return sock.sendMessage(from, {
+          text: "Belum ada game. Ketik .game dulu."
+        })
+      }
+
+      const jawaban = parseInt(text.split(" ")[1])
+      const angkaBenar = global.tebakAngka[from]
+
+      if (isNaN(jawaban)) {
+        return sock.sendMessage(from, {
+          text: "Masukin angka yang bener. Contoh: .tebak 5"
+        })
+      }
+
+      if (jawaban === angkaBenar) {
+        delete global.tebakAngka[from]
+
+        return sock.sendMessage(from, {
+          text: "🎉 Benar! Kamu menang ✅"
+        })
+      }
+
+      return sock.sendMessage(from, {
+        text: jawaban > angkaBenar
+          ? "❌ Salah, angkanya lebih kecil."
+          : "❌ Salah, angkanya lebih besar."
+      })
+    }
+  })
+}
+
+startBot()
