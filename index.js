@@ -86,7 +86,7 @@ const botName = "IRGAN BOT"
 
 let publicMode = true
 let autoRead = false
-let autoReact = true
+let autoReact = false
 let antiSpam = true
 let badword = true
 let antiDelete = true
@@ -218,7 +218,6 @@ const isGroup = from.endsWith("@g.us")
 console.log("PESAN MASUK:", text)
 
     if (autoRead) await sock.readMessages([msg.key])
-    if (autoReact && text) await sock.sendMessage(from, { react: { text: "⚡", key: msg.key } })
 
     if (!publicMode && !isOwner(sender)) return
 
@@ -256,7 +255,7 @@ console.log("PESAN MASUK:", text)
     if (text === ".menu") {
       const caption =
 `╔═══『 ${botName} 』═══╗
-║ 👑 Owner : Igan
+║ 👑 Owner : Irgan
 ║ ⚡ Status : Online
 ║ 🤖 Mode : ${publicMode ? "Public" : "Self"}
 ╠══════════════════
@@ -303,7 +302,7 @@ console.log("PESAN MASUK:", text)
     }
 
     if (text === ".ping") return sock.sendMessage(from, { text: "pong ✅" })
-    if (text === ".owner") return sock.sendMessage(from, { text: "Owner: Igan" })
+    if (text === ".owner") return sock.sendMessage(from, { text: "Owner: Irgan mau sewa bot yang premium?chat 083178115390" })
     if (text === ".info") return sock.sendMessage(from, { text: "Bot penjaga grup aktif ✅" })
 
     if (text === ".public" && isOwner(sender)) {
