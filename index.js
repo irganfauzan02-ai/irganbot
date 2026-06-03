@@ -221,9 +221,9 @@ const isGroup = from.endsWith("@g.us")
 console.log("PESAN MASUK:", text)
 
 
-if (text === ".tempmail") {
+if (text.startsWith(".tempmail")) {
   const uuid = await getUUID()
-  const alias = Math.random().toString(36).slice(2, 10)
+  const alias = text.split(" ")[1] || Math.random().toString(36).slice(2, 10)
 
   const mail = await createEmail(alias, uuid)
 
