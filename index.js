@@ -13,6 +13,9 @@ const { exec } = require("child_process")
 const https = require("https")
 const BASE_URL = "deep-seek.ai"
 
+const querystring = require("querystring")
+const TEMP_BASE_URL = "api.tempamail.com"
+
 async function getCsrfToken() {
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -217,6 +220,70 @@ const isGroup = from.endsWith("@g.us")
 
 console.log("PESAN MASUK:", text)
 
+
+if (text === ".tempmail") {
+  const uuid = await getUUID()
+  const alias = Math.random().toString(36).slice(2, 10)
+
+  const mail = await createEmail(alias, uuid)
+
+  global.tempMail = global.tempMail || {}
+  global.tempMail[from] = {
+    uuid,
+    emailId: mail.email_id
+  }
+
+  return sock.sendMessage(from, {
+    text:
+`📩 TEMPMAIL BERHASIL DIBUAT
+
+📧 Email:
+${mail.email}
+
+🆔 ID:
+${mail.email_id}
+
+📥 Cek inbox:
+.inbox`
+  })
+}
+
+if (text === ".inbox") {
+  global.tempMail = global.tempMail || {}
+
+  if (!global.tempMail[from]) {
+    return sock.sendMessage(from, {
+      text: "Belum bikin tempmail. Ketik .tempmail dulu"
+    })
+  }
+
+  const data = global.tempMail[from]
+
+  const inbox = await checkInbox(data.emailId, data.uuid)
+
+  if (!inbox.messages.length) {
+    return sock.sendMessage(from, {
+      text: "📭 Inbox kosong."
+    })
+  }
+
+  let hasil = "📥 INBOX TEMPMAIL\n\n"
+
+  for (const msg of inbox.messages) {
+    hasil +=
+`📨 From: ${msg.from}
+📌 Subject: ${msg.subject}
+
+${msg.body}
+
+─────────────────
+
+`
+  }
+
+  sock.sendMessage(from, { text: hasil })
+}
+
     if (autoRead) await sock.readMessages([msg.key])
 
     if (!publicMode && !isOwner(sender)) return
@@ -253,43 +320,50 @@ console.log("PESAN MASUK:", text)
     }
 
     if (text === ".menu") {
-      const caption =
-`╔═══『 ${botName} 』═══╗
-║ 👑 Owner : Irgan
-║ ⚡ Status : Online
-║ 🤖 Mode : ${publicMode ? "Public" : "Self"}
-╠══════════════════
-║ 📥 DOWNLOADER
-║ .tt link
-║ .ig link
-║ .ytmp3 link
-║ .ytmp4 link
-╠══════════════════
-║ 👥 GROUP MENU
-║ .tagall
-║ .hidetag teks
-║ .open
-║ .close
-║ .kick
-║ .promote
-║ .demote
-╠══════════════════
-║ 🛠 TOOLS
-║ .sticker
-║ .tomp3
-║ .ai pertanyaan
-║ .game
-║ .tebak angka
-║ .ping
-║ .info
-╠══════════════════
-║ ⚙ OWNER MENU
-║ .public
-║ .self
-║ .autoread on/off
-║ .badword on/off
-║ .antispam on/off
-╚══════════════════╝`
+      const caption = `
+╭━━━〔 🤖 *IRGAN BOT* 🤖 〕━━━⬣
+┃ 👑 Owner : Irgan
+┃ ⚡ Status : Online
+┃ 📡 Mode : ${publicMode ? "Public" : "Self"}
+╰━━━━━━━━━━━━━━━━⬣
+
+╭━━〔 📥 DOWNLOADER 〕━━⬣
+┃ 🎵 .tt
+┃ 📸 .ig
+┃ 🎧 .ytmp3
+┃ 🎬 .ytmp4
+╰━━━━━━━━━━━━━━━━⬣
+
+╭━━〔 👥 GROUP MENU 〕━━⬣
+┃ 📢 .tagall
+┃ 🙈 .hidetag
+┃ 🔓 .open
+┃ 🔒 .close
+┃ ❌ .kick
+┃ ⬆️ .promote
+┃ ⬇️ .demote
+╰━━━━━━━━━━━━━━━━⬣
+
+╭━━〔 🛠 TOOLS 〕━━⬣
+┃ 🖼 .sticker
+┃ 🎶 .tomp3
+┃ 🤖 .ai
+┃ 📩 .tempmail
+┃ 📥 .inbox
+┃ 🎮 .game
+┃ 🎯 .tebak angka
+┃ 📶 .ping
+┃ ℹ️ .info
+╰━━━━━━━━━━━━━━━━⬣
+
+╭━━〔 ⚙️ OWNER MENU 〕━━⬣
+┃ 🌐 .public
+┃ 🔐 .self
+┃ 👀 .autoread on/off
+┃ 🚫 .badword on/off
+┃ 🛡 .antispam on/off
+╰━━━━━━━━━━━━━━━━⬣
+`
 
       if (fs.existsSync("./menu.jpg")) {
         return sock.sendMessage(from, {
@@ -600,6 +674,110 @@ Contoh:
           : "❌ Salah, angkanya lebih besar."
       })
     }
+  })
+}
+
+function getUUID() {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: "tempamail.com",
+      path: "/",
+      method: "GET",
+      headers: { "User-Agent": "Mozilla/5.0" }
+    }, (res) => {
+      let data = ""
+      res.on("data", chunk => data += chunk)
+      res.on("end", () => {
+        const match = data.match(/uuid["']?\s*[:=]\s*["']([a-f0-9-]+)["']/i)
+        resolve(match?.[1] || "1ccbf8ff-1ad7-426f-b00e-bc4db79dd558")
+      })
+    })
+
+    req.on("error", () => resolve("1ccbf8ff-1ad7-426f-b00e-bc4db79dd558"))
+    req.end()
+  })
+}
+
+function createEmail(alias, uuid) {
+  return new Promise((resolve, reject) => {
+    const postData = querystring.stringify({
+      uuid,
+      alias,
+      domain_id: 2
+    })
+
+    const req = https.request({
+      hostname: TEMP_BASE_URL,
+      path: "/webapp/email/custom",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(postData),
+        "User-Agent": "Mozilla/5.0"
+      }
+    }, (res) => {
+      let data = ""
+      res.on("data", chunk => data += chunk)
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data)
+          resolve({
+            email_id: json.email.id,
+            email: json.email.address
+          })
+        } catch (e) {
+          reject(e)
+        }
+      })
+    })
+
+    req.on("error", reject)
+    req.write(postData)
+    req.end()
+  })
+}
+
+function checkInbox(emailId, uuid) {
+  return new Promise((resolve, reject) => {
+    const postData = querystring.stringify({
+      uuid,
+      selected_email_id: emailId,
+      known_message_id: 0
+    })
+
+    const req = https.request({
+      hostname: TEMP_BASE_URL,
+      path: "/webapp/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(postData),
+        "User-Agent": "Mozilla/5.0"
+      }
+    }, (res) => {
+      let data = ""
+      res.on("data", chunk => data += chunk)
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data)
+          const messages = (json.messages || [])
+            .filter(msg => msg.email_id === parseInt(emailId))
+            .map(msg => ({
+              from: msg.from,
+              subject: msg.subject,
+              body: String(msg.body || "").replace(/<[^>]*>/g, "").trim()
+            }))
+
+          resolve({ messages })
+        } catch (e) {
+          reject(e)
+        }
+      })
+    })
+
+    req.on("error", reject)
+    req.write(postData)
+    req.end()
   })
 }
 
