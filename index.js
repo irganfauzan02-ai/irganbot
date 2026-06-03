@@ -339,6 +339,9 @@ ${msg.body}
 ┃ 📥 .inbox
 ┃ 🎮 .game
 ┃ 🎯 .tebak angka
+║ 🧠 .iq
+║ 📝 .iqjawab A
+║ 🏆 .hasiliq
 ┃ 📶 .ping
 ┃ ℹ️ .info
 ╰━━━━━━━━━━━━━━━━⬣
@@ -664,6 +667,112 @@ Contoh:
   })
 }
 
+if (text === ".iq") {
+  global.iqSession = global.iqSession || {}
+
+  const soal = iqQuestions[Math.floor(Math.random() * iqQuestions.length)]
+
+  global.iqSession[from] = global.iqSession[from] || {
+    benar: 0,
+    salah: 0,
+    total: 0
+  }
+
+  global.iqSession[from].current = soal
+
+  return sock.sendMessage(from, {
+    text:
+`🧠 *IQ TEST*
+
+${soal.question}
+
+A. ${soal.options[0]}
+B. ${soal.options[1]}
+C. ${soal.options[2]}
+D. ${soal.options[3]}
+
+Jawab:
+.iqjawab A
+
+Lihat hasil:
+.hasiliq`
+  })
+}
+
+if (text.startsWith(".iqjawab ")) {
+  global.iqSession = global.iqSession || {}
+
+  const sesi = global.iqSession[from]
+
+  if (!sesi || !sesi.current) {
+    return sock.sendMessage(from, {
+      text: "Belum ada soal. Ketik .iq dulu."
+    })
+  }
+
+  const jawab = text.split(" ")[1]?.toUpperCase()
+  const map = { A: 0, B: 1, C: 2, D: 3 }
+  const pilihan = sesi.current.options[map[jawab]]
+
+  if (!pilihan) {
+    return sock.sendMessage(from, {
+      text: "Jawab pakai A/B/C/D. Contoh: .iqjawab A"
+    })
+  }
+
+  sesi.total++
+
+  if (pilihan === sesi.current.answer) {
+    sesi.benar++
+    sesi.current = null
+
+    return sock.sendMessage(from, {
+      text: "✅ Benar!\nKetik .iq buat soal berikutnya."
+    })
+  } else {
+    sesi.salah++
+    const benar = sesi.current.answer
+    sesi.current = null
+
+    return sock.sendMessage(from, {
+      text: `❌ Salah!\nJawaban benar: ${benar}\nKetik .iq buat soal berikutnya.`
+    })
+  }
+}
+
+if (text === ".hasiliq") {
+  global.iqSession = global.iqSession || {}
+
+  const sesi = global.iqSession[from]
+
+  if (!sesi || sesi.total === 0) {
+    return sock.sendMessage(from, {
+      text: "Belum ada hasil. Main dulu pakai .iq"
+    })
+  }
+
+  const persen = sesi.benar / sesi.total
+  const iq = Math.round(75 + persen * 65)
+  const level = getIQLevel(iq)
+
+  return sock.sendMessage(from, {
+    text:
+`🧠 *HASIL IQ TEST*
+
+✅ Benar: ${sesi.benar}
+❌ Salah: ${sesi.salah}
+📌 Total: ${sesi.total}
+
+🎯 Estimasi IQ:
+*${iq} IQ*
+
+🏆 Kategori:
+${level}
+
+Ketik .iq buat lanjut tes.`
+  })
+}
+
 function getUUID() {
   return new Promise((resolve) => {
     const req = https.request({
@@ -774,6 +883,42 @@ async function safeSend(sock, jid, content) {
   } catch (e) {
     console.log("Gagal kirim pesan:", e.message)
   }
+}
+
+const iqQuestions = [
+  {
+    question: "2, 4, 8, 16, ?",
+    options: ["18", "24", "32", "64"],
+    answer: "32"
+  },
+  {
+    question: "Jika semua Bloops adalah Razzies, dan semua Razzies adalah Lazzies, maka semua Bloops adalah?",
+    options: ["Razzies", "Lazzies", "Bukan apa-apa", "Tidak bisa ditentukan"],
+    answer: "Lazzies"
+  },
+  {
+    question: "1, 1, 2, 3, 5, 8, ?",
+    options: ["10", "11", "13", "15"],
+    answer: "13"
+  },
+  {
+    question: "Mana yang berbeda? Kucing, Anjing, Burung, Mobil",
+    options: ["Kucing", "Anjing", "Burung", "Mobil"],
+    answer: "Mobil"
+  },
+  {
+    question: "5 + 3 × 2 = ?",
+    options: ["16", "11", "13", "10"],
+    answer: "11"
+  }
+]
+
+function getIQLevel(iq) {
+  if (iq >= 140) return "Monster Otak 😭"
+  if (iq >= 120) return "Genius 🔥"
+  if (iq >= 100) return "Pintar 🧠"
+  if (iq >= 80) return "Lumayan 😎"
+  return "Perlu latihan lagi 💪"
 }
 
 console.log("BOT MULAI")
