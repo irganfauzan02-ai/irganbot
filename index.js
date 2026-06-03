@@ -366,13 +366,13 @@ ${msg.body}
 `
 
       if (fs.existsSync("./menu.jpg")) {
-        return sock.sendMessage(from, {
+        return safeSend(sock, from, {
           image: fs.readFileSync("./menu.jpg"),
           caption
         })
       }
 
-      return sock.sendMessage(from, { text: caption })
+      return safeSend(sock, from, { text: caption })
     }
 
     if (text === ".ping") return sock.sendMessage(from, { text: "pong ✅" })
@@ -781,4 +781,13 @@ function checkInbox(emailId, uuid) {
   })
 }
 
+async function safeSend(sock, jid, content) {
+  try {
+    return await sock.sendMessage(jid, content)
+  } catch (e) {
+    console.log("Gagal kirim pesan:", e.message)
+  }
+}
+
 startBot()
+
