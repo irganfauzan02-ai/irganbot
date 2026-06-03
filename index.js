@@ -34,9 +34,14 @@ function isOwner(sender) {
 }
 
 async function isAdmin(sock, groupId, sender) {
-  const meta = await sock.groupMetadata(groupId)
-  const p = meta.participants.find(x => x.id === sender)
-  return p?.admin === "admin" || p?.admin === "superadmin"
+  try {
+    const meta = await sock.groupMetadata(groupId)
+    const p = meta.participants.find(x => x.id === sender)
+    return p?.admin === "admin" || p?.admin === "superadmin"
+  } catch (e) {
+    console.log("Gagal ambil metadata grup:", e.message)
+    return false
+  }
 }
 
 async function startBot() {
