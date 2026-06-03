@@ -144,26 +144,13 @@ async function startBot() {
   if (!sock.authState.creds.registered) {
 
   setTimeout(async () => {
-
-    try {
-
-      const code = await sock.requestPairingCode(ownerNumber)
-
-      console.log("")
-      console.log("╔════════════════╗")
-      console.log("║  PAIRING CODE  ║")
-      console.log("╚════════════════╝")
-      console.log(code)
-      console.log("")
-
-    } catch (err) {
-
-      console.log("Gagal ambil pairing code:")
-      console.log(err)
-
-    }
-
-  }, 3000)
+  try {
+    const code = await sock.requestPairingCode(ownerNumber)
+    console.log("PAIRING CODE:", code)
+  } catch (err) {
+    console.log("Gagal ambil pairing code:", err.message)
+  }
+}, 5000)
 
 }
 
