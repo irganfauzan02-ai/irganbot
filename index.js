@@ -88,38 +88,29 @@ async function startBot() {
 }
 
   sock.ev.on("group-participants.update", async (u) => {
-    for (const user of u.participants) {
-      if (u.action === "add") {
-        if (fs.existsSync("./welcome.jpg")) {
-          await sock.sendMessage(u.id, {
-            image: fs.readFileSync("./welcome.jpg"),
-            caption:
-`╔═══『 WELCOME 』═══╗
+  const participants = Array.isArray(u.participants)
+    ? u.participants
+    : [u.participants]
 
-👋 Halo @${user.split("@")[0]}
+  for (const user of participants) {
+    const userId = typeof user === "string" ? user : user.id
+    if (!userId) continue
 
-Selamat datang di grup 🎉
-Jangan lupa baca rules ya.
-
-╚════════════════╝`,
-            mentions: [user]
-          })
-        } else {
-          await sock.sendMessage(u.id, {
-            text: `👋 Selamat datang @${user.split("@")[0]}`,
-            mentions: [user]
-          })
-        }
-      }
-
-      if (u.action === "remove") {
-        await sock.sendMessage(u.id, {
-          text: `👋 @${user.split("@")[0]} keluar dari grup`,
-          mentions: [user]
-        })
-      }
+    if (u.action === "add") {
+      await sock.sendMessage(u.id, {
+        text: `👋 Selamat datang @${userId.split("@")[0]}`,
+        mentions: [userId]
+      })
     }
-  })
+
+    if (u.action === "remove") {
+      await sock.sendMessage(u.id, {
+        text: `👋 @${userId.split("@")[0]} keluar dari grup`,
+        mentions: [userId]
+      })
+    }
+  }
+})
 
   sock.ev.on("messages.update", async (updates) => {
     if (!antiDelete) return
