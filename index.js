@@ -141,7 +141,7 @@ async function startBot() {
     }
   })
 
-  if (!state.creds.registered) {
+  if (!sock.authState.creds.registered) {
 
   setTimeout(async () => {
 
