@@ -119,6 +119,42 @@ async function isAdmin(sock, groupId, sender) {
   }
 }
 
+const iqQuestions = [
+  {
+    question: "2, 4, 8, 16, ?",
+    options: ["18", "24", "32", "64"],
+    answer: "32"
+  },
+  {
+    question: "Jika semua Bloops adalah Razzies, dan semua Razzies adalah Lazzies, maka semua Bloops adalah?",
+    options: ["Razzies", "Lazzies", "Bukan apa-apa", "Tidak bisa ditentukan"],
+    answer: "Lazzies"
+  },
+  {
+    question: "1, 1, 2, 3, 5, 8, ?",
+    options: ["10", "11", "13", "15"],
+    answer: "13"
+  },
+  {
+    question: "Mana yang berbeda? Kucing, Anjing, Burung, Mobil",
+    options: ["Kucing", "Anjing", "Burung", "Mobil"],
+    answer: "Mobil"
+  },
+  {
+    question: "5 + 3 x 2 = ?",
+    options: ["16", "11", "13", "10"],
+    answer: "11"
+  }
+]
+
+function getIQLevel(iq) {
+  if (iq >= 140) return "Monster Otak 😭"
+  if (iq >= 120) return "Genius 🔥"
+  if (iq >= 100) return "Pintar 🧠"
+  if (iq >= 80) return "Lumayan 😎"
+  return "Perlu latihan lagi 💪"
+}
+
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("session")
 
@@ -668,13 +704,27 @@ Contoh:
 if (text === ".iq") {
   global.iqSession = global.iqSession || {}
 
-  const soal = iqQuestions[Math.floor(Math.random() * iqQuestions.length)]
+global.iqSession[from] = global.iqSession[from] || {
+  benar: 0,
+  salah: 0,
+  total: 0,
+  used: []
+}
 
-  global.iqSession[from] = global.iqSession[from] || {
-    benar: 0,
-    salah: 0,
-    total: 0
-  }
+let available = iqQuestions.filter((_, i) =>
+  !global.iqSession[from].used.includes(i)
+)
+
+if (available.length === 0) {
+  global.iqSession[from].used = []
+  available = iqQuestions
+}
+
+const randomIndex = Math.floor(Math.random() * available.length)
+const soal = available[randomIndex]
+const realIndex = iqQuestions.indexOf(soal)
+
+global.iqSession[from].used.push(realIndex)
 
   global.iqSession[from].current = soal
 
@@ -883,44 +933,8 @@ async function safeSend(sock, jid, content) {
   }
 }
 
-const iqQuestions = [
-  {
-    question: "2, 4, 8, 16, ?",
-    options: ["18", "24", "32", "64"],
-    answer: "32"
-  },
-  {
-    question: "Jika semua Bloops adalah Razzies, dan semua Razzies adalah Lazzies, maka semua Bloops adalah?",
-    options: ["Razzies", "Lazzies", "Bukan apa-apa", "Tidak bisa ditentukan"],
-    answer: "Lazzies"
-  },
-  {
-    question: "1, 1, 2, 3, 5, 8, ?",
-    options: ["10", "11", "13", "15"],
-    answer: "13"
-  },
-  {
-    question: "Mana yang berbeda? Kucing, Anjing, Burung, Mobil",
-    options: ["Kucing", "Anjing", "Burung", "Mobil"],
-    answer: "Mobil"
-  },
-  {
-    question: "5 + 3 × 2 = ?",
-    options: ["16", "11", "13", "10"],
-    answer: "11"
-  }
-]
-
-function getIQLevel(iq) {
-  if (iq >= 140) return "Monster Otak 😭"
-  if (iq >= 120) return "Genius 🔥"
-  if (iq >= 100) return "Pintar 🧠"
-  if (iq >= 80) return "Lumayan 😎"
-  return "Perlu latihan lagi 💪"
-}
   })
 }
-
 console.log("BOT MULAI")
 
 startBot()
